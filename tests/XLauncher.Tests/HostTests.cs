@@ -210,9 +210,9 @@ public sealed class PlexTests
     [Fact]
     public void Htpc_client_id_is_read_from_web_section()
     {
-        const string ini = "[General]\nClientID=wrong\n\n[web]\nVERSION=12\nClientID=9i9mwctchldf73mvy2a7cy65\r\nPlexAuthToken=secret\n";
+        const string ini = "[General]\nClientID=wrong\n\n[web]\nVERSION=12\nClientID=abc123fakeclientid456\r\nPlexAuthToken=secret\n";
 
-        Assert.Equal("9i9mwctchldf73mvy2a7cy65", HtpcConfig.ParseClientId(ini));
+        Assert.Equal("abc123fakeclientid456", HtpcConfig.ParseClientId(ini));
         Assert.Null(HtpcConfig.ParseClientId("[web]\nVERSION=12\n"));
     }
 

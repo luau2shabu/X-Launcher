@@ -45,8 +45,10 @@ ui/                     the interface: plain HTML/CSS/ES modules, no build step
   js/brand.js           logo mark, wordmark and startup splash
   js/mock.js            fake backend so the UI runs in a normal browser (index.html?mock=1)
   fonts/                Noto Sans Thai and Poppins (SIL Open Font License)
-tools/make-icon.ps1     regenerates the app icon from the brand mark
+installer/              Inno Setup script and wizard images
+tools/                  make-icon.ps1 / make-installer-art.ps1 regenerate the icon and wizard images
 publish.ps1             builds dist/XLauncher
+build-installer.ps1     builds dist/XLauncher-Setup-<version>.exe
 ```
 
 The UI talks to the host with JSON messages (`ui/js/bridge.js` ↔ `src/XLauncher/Bridge/Routes.cs`).
@@ -75,12 +77,25 @@ To work on the UI alone, serve `ui/` with any static server and open `index.html
 
 ## Install on the TV PC
 
+Download `XLauncher-Setup-<version>.exe` from [Releases](https://github.com/luau2shabu/X-Launcher/releases) and run it.
+The setup wizard is in Thai and English and does the following:
+- installs per user with no admin prompt (it can install for all users instead);
+- requires **Plex HTPC**: if it is missing, the wizard downloads the latest version from plex.tv and
+  won't continue until it is installed;
+- installs the Microsoft Edge WebView2 Runtime if the PC doesn't have it;
+- can add a desktop shortcut and start X Launcher when you sign in.
+
+The app is self-contained, so the .NET runtime is not needed.
+
+To build the setup yourself, you need [Inno Setup 6.5+](https://jrsoftware.org/isinfo.php)
+(`winget install JRSoftware.InnoSetup`). Then run:
+
 ```powershell
-.\publish.ps1            # or .\publish.ps1 -SelfContained
+.\build-installer.ps1    # -> dist\XLauncher-Setup-<version>.exe
 ```
 
-1. Copy `dist\XLauncher` anywhere and run `XLauncher.exe`.
-2. To start it at sign-in, put a shortcut to it in `shell:startup`.
+For a plain folder build instead, run `.\publish.ps1` (or `.\publish.ps1 -SelfContained`), copy `dist\XLauncher`,
+and put a shortcut to `XLauncher.exe` in `shell:startup`.
 
 Settings, logs and caches live in `%LOCALAPPDATA%\XLauncher`. `xlauncher.log` never contains Plex tokens.
 
