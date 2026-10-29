@@ -14,6 +14,8 @@ public interface IHostWindow
     string? PickFolder();
     void Quit();
     void OnUiReady();
+    /// <summary>Lets the user pick a picture (or .exe/.ico) for an app icon.</summary>
+    string? PickImage();
     /// <summary>Called right before an app is started (watches for its window to make it full screen).</summary>
     void BeforeLaunch(AppEntry app);
 }
@@ -29,6 +31,9 @@ public static class Routes
         bridge.On("settings.get", _ => settings.Current);
         bridge.On("settings.update", p =>
         {
+            // A kids profile cannot change settings (or switch profile) without the parent PIN
+            if (svc.Kids.ActiveRules is not null && !svc.Pin.Verify(p.Opt("_pin") ?? ""))
+                throw new UnauthorizedAccessException("Parent PIN required");
             var updated = settings.Merge(p);
             svc.Plex.Invalidate();
             return updated;
@@ -39,17 +44,30 @@ public static class Routes
         bridge.On("apps.launch", async p =>
         {
             var app = await svc.Apps.FindAsync(p.Req("id")) ?? throw new InvalidOperationException("App not found");
+            if (!svc.Kids.CanLaunch(app.Id)) throw new UnauthorizedAccessException("This app is not allowed for this profile");
+            if (svc.Kids.TimeUp) throw new UnauthorizedAccessException("Screen time is up for today");
             window.BeforeLaunch(app);
             AppLauncher.Launch(app);
             return (object?)true;
         });
-
-        // ---- app icons from the internet
-        bridge.On("icons.search", async p => (object?)await svc.Icons.SearchAsync(p.Req("name"), p.Opt("website")));
-        bridge.On("icons.use", async p =>
+        bridge.On("apps.rename", p =>
         {
-            var url = await svc.Icons.UseAsync(p.Req("id"), p.Req("url"));
-            return (object?)url;
+            var id = p.Req("id");
+            var name = p.Opt("name")?.Trim();
+            return settings.Update(s =>
+            {
+                if (string.IsNullOrEmpty(name)) s.NameOverrides.Remove(id);
+                else s.NameOverrides[id] = name;
+            });
+        });
+
+        // ---- app icons: from the internet or from a file on this PC
+        bridge.On("icons.search", async p => (object?)await svc.Icons.SearchAsync(p.Req("name"), p.Opt("website")));
+        bridge.On("icons.use", async p => (object?)await svc.Icons.UseAsync(p.Req("id"), p.Req("url")));
+        bridge.On("icons.fromFile", async p =>
+        {
+            var path = window.PickImage();
+            return path is null ? null : (object?)await svc.Icons.UseFileAsync(p.Req("id"), path);
         });
         bridge.On("icons.reset", p =>
         {
@@ -57,11 +75,21 @@ public static class Routes
             return true;
         });
 
-        // ---- Google sign-in for profiles
-        bridge.On("google.status", _ => svc.Google.Status());
-        bridge.On("google.start", async p => (object?)await svc.Google.StartAsync(p.Req("profile")));
-        bridge.On("google.poll", async p => (object?)await svc.Google.PollAsync(p.Req("session")));
-        bridge.On("google.signOut", p => svc.Google.SignOut(p.Req("profile")));
+        // ---- parent PIN and kids mode
+        bridge.On("pin.status", _ => new { set = svc.Pin.IsSet });
+        bridge.On("pin.verify", p => svc.Pin.Verify(p.Req("pin")));
+        bridge.On("pin.set", p =>
+        {
+            if (svc.Pin.IsSet && !svc.Pin.Verify(p.Opt("current") ?? "")) throw new UnauthorizedAccessException("The current PIN is wrong");
+            svc.Pin.Set(p.Req("pin"));
+            return true;
+        });
+        bridge.On("kids.status", _ => svc.Kids.Status());
+        bridge.On("kids.addTime", p =>
+        {
+            if (!svc.Pin.Verify(p.Opt("pin") ?? "")) throw new UnauthorizedAccessException("Parent PIN required");
+            return svc.Kids.AddTime(p.Req("profile"), p.Num("minutes", 30));
+        });
         bridge.On("apps.addWebsite", p =>
         {
             var url = NormalizeUrl(p.Req("url"));
@@ -117,7 +145,12 @@ public static class Routes
             await svc.Plex.SetWatchedAsync(p.Req("server"), p.Req("key"), p.Flag("watched"));
             return (object?)true;
         });
-        bridge.On("plex.play", async p => (object?)await svc.Playback.PlayAsync(p.Req("server"), p.Req("key"), p.Num("offset", 0)));
+        bridge.On("plex.play", async p =>
+        {
+            if (svc.Kids.TimeUp) throw new UnauthorizedAccessException("Screen time is up for today");
+            await svc.Plex.ItemAsync(p.Req("server"), p.Req("key")); // throws when a kids profile may not see it
+            return (object?)await svc.Playback.PlayAsync(p.Req("server"), p.Req("key"), p.Num("offset", 0));
+        });
 
         // ---- ambient mode
         bridge.On("ambient.photos", _ => ImageRouter.ListPhotos(settings.Current.Ambient.Folder));

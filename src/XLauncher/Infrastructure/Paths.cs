@@ -13,13 +13,7 @@ public static class Paths
     public static string WebViewData => Path.Combine(DataDir, "webview");
     public static string CustomIcons => Path.Combine(DataDir, "icons");
     public static string Avatars => Path.Combine(DataDir, "avatars");
-
-    /// <summary>Google OAuth client for sign-in: next to the exe (shipped with a build) or in the data folder.</summary>
-    public static IEnumerable<string> GoogleClientFiles =>
-    [
-        Path.Combine(AppContext.BaseDirectory, "google-oauth.json"),
-        Path.Combine(DataDir, "google-oauth.json"),
-    ];
+    public static string PinFile => Path.Combine(DataDir, "parent-pin.json");
 
     // Separate Edge profiles so command-line flags (--user-agent) apply to our windows only
     public static string EdgeProfile => Path.Combine(DataDir, "edge");

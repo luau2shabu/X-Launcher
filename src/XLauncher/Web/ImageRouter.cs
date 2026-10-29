@@ -45,7 +45,8 @@ public sealed class ImageRouter(AppCatalog apps, PlexImages plexImages, Settings
                 return (await ReadLocalAsync(Paths.CustomIcons, segments[1]), "image/png");
 
             case "avatar" when segments.Length == 2:
-                return (await ReadLocalAsync(Paths.Avatars, segments[1]), "image/jpeg");
+                return (await ReadLocalAsync(Paths.Avatars, segments[1]),
+                    PhotoTypes.TryGetValue(Path.GetExtension(segments[1]), out var avatarType) ? avatarType : "image/jpeg");
 
             default:
                 return (null, "");

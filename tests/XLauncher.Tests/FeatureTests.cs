@@ -1,5 +1,5 @@
 using XLauncher.Apps;
-using XLauncher.Auth;
+using XLauncher.Config;
 
 namespace XLauncher.Tests;
 
@@ -61,17 +61,93 @@ public sealed class IconSearchTests
     }
 }
 
-public sealed class GoogleSignInTests
+public sealed class KidsTests : IDisposable
 {
+    readonly string _dir = Path.Combine(Path.GetTempPath(), "xlauncher-kids-" + Guid.NewGuid().ToString("N"));
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_dir)) Directory.Delete(_dir, recursive: true);
+    }
+
     [Theory]
-    [InlineData("authorization_pending", "pending")]
-    [InlineData("slow_down", "slow_down")]
-    [InlineData("access_denied", "denied")]
-    [InlineData("expired_token", "expired")]
-    public void Maps_device_flow_errors(string error, string status) =>
-        Assert.Equal(status, GoogleSignIn.PollStatus(error));
+    [InlineData("G", 0)]
+    [InlineData("us/PG-13", 13)]
+    [InlineData("TV-MA", 17)]
+    [InlineData("th/15", 15)]
+    [InlineData("13+", 13)]
+    [InlineData("", null)]
+    [InlineData("Not Rated", null)]
+    public void Ratings_map_to_ages(string rating, int? age) =>
+        Assert.Equal(age, ContentRatings.AgeOf(rating));
+
+    [Theory]
+    [InlineData("child", "PG", "movie", true)]
+    [InlineData("child", "PG-13", "movie", false)]
+    [InlineData("teen", "TV-14", "show", true)]
+    [InlineData("young", "TV-Y7", "show", true)]
+    [InlineData("young", "PG", "movie", false)]
+    [InlineData("child", null, "movie", false)]
+    [InlineData("child", null, "episode", true)]
+    [InlineData("all", "R", "movie", true)]
+    public void Rating_ceiling_allows_or_blocks(string level, string? rating, string type, bool allowed) =>
+        Assert.Equal(allowed, ContentRatings.Allows(level, rating, type));
 
     [Fact]
-    public void Unknown_errors_fail_the_sign_in() =>
-        Assert.Throws<InvalidOperationException>(() => GoogleSignIn.PollStatus("invalid_client"));
+    public void Pin_is_hashed_and_verified()
+    {
+        var store = new PinStore(Path.Combine(_dir, "pin.json"));
+        Assert.True(store.Verify("anything")); // no PIN yet: nothing to protect
+
+        store.Set("2468");
+
+        Assert.True(store.Verify("2468"));
+        Assert.False(store.Verify("1357"));
+        Assert.DoesNotContain("2468", File.ReadAllText(Path.Combine(_dir, "pin.json")));
+        Assert.Throws<ArgumentException>(() => store.Set("12a4"));
+    }
+
+    [Fact]
+    public void Kids_profile_is_limited_to_its_apps_libraries_and_time()
+    {
+        var settings = new SettingsStore(Path.Combine(_dir, "settings.json"));
+        settings.Update(s =>
+        {
+            s.Profiles.Add(new Profile
+            {
+                Id = "kid", Name = "Kids", Kind = Profile.Kids,
+                Rules = new KidsRules { AllowedApps = ["netflix"], AllowedSections = ["srv/2"], MaxRating = "child", DailyMinutes = 2 },
+            });
+            s.ActiveProfileId = "kid";
+        });
+        var guard = new KidsGuard(settings);
+
+        Assert.True(guard.CanLaunch("netflix"));
+        Assert.False(guard.CanLaunch("steam"));
+        Assert.True(guard.CanSee("srv", "2", "PG", "movie"));
+        Assert.False(guard.CanSee("srv", "1", "G", "movie"));
+        Assert.False(guard.CanSee("srv", "2", "R", "movie"));
+
+        Assert.False(guard.CountMinute());
+        Assert.True(guard.CountMinute());
+        Assert.True(guard.TimeUp);
+
+        guard.AddTime("kid", 30);
+        Assert.False(guard.TimeUp);
+    }
+
+    [Fact]
+    public void Old_settings_get_one_admin_profile()
+    {
+        var s = new AppSettings
+        {
+            Profiles = [new Profile { Id = "default", Name = "Home" }, new Profile { Id = "b", Name = "Mom", Kind = Profile.Admin }, new Profile { Id = "k", Kind = Profile.Kids }],
+        };
+
+        SettingsStore.Normalize(s);
+
+        Assert.Single(s.Profiles, p => p.Kind == Profile.Admin);
+        Assert.Equal(Profile.Admin, s.Profiles.First(p => p.Id == "b").Kind);
+        Assert.NotNull(s.Profiles.First(p => p.Id == "k").Rules);
+    }
 }

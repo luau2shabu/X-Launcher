@@ -14,6 +14,8 @@ async function cached(key, ttlMs, load, refresh = false) {
 export const state = {
   settings: null,
   showHiddenApps: false,
+  /** Parent PIN entered to open Settings while a kids profile is active; cleared when Settings closes. */
+  unlockPin: null,
 };
 
 export function invalidate(prefix = '') {
@@ -25,8 +27,9 @@ export async function loadSettings() {
   return state.settings;
 }
 
-export async function updateSettings(patch) {
-  state.settings = await call('settings.update', patch);
+/** Saves a partial settings change. A kids profile needs the parent PIN (pass it as `pin`). */
+export async function updateSettings(patch, pin = state.unlockPin) {
+  state.settings = await call('settings.update', pin ? { ...patch, _pin: pin } : patch);
   invalidate('plex');
   return state.settings;
 }
@@ -45,10 +48,23 @@ export async function updateProfile(mutate) {
 
 export const apps = (refresh = false) => cached('apps', 10 * 60_000, () => call('apps.list', { refresh }), refresh);
 
+export const isKids = () => activeProfile().kind === 'kids';
+export const isAdmin = () => activeProfile().kind === 'admin';
+
+/** "Your apps": the profile's favorites, or for a kids profile the apps the parent allowed (in that order). */
 export async function favoriteApps() {
   const all = await apps();
   const byId = new Map(all.map((a) => [a.id, a]));
-  return activeProfile().favorites.map((id) => byId.get(id)).filter(Boolean);
+  const ids = isKids() ? activeProfile().rules?.allowedApps || [] : activeProfile().favorites;
+  return ids.map((id) => byId.get(id)).filter(Boolean);
+}
+
+/** Apps the current profile may see: everything, or only the allowed ones for kids. */
+export async function visibleApps() {
+  const all = await apps();
+  if (!isKids()) return all;
+  const allowed = new Set(activeProfile().rules?.allowedApps || []);
+  return all.filter((a) => allowed.has(a.id));
 }
 
 export const isFavorite = (id) => activeProfile().favorites.includes(id);

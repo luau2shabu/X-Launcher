@@ -372,7 +372,7 @@ body.no-backdrop #backdrop .layer.on { opacity: 0; }
 .profile-tile.focused { transform: scale(1.1); }
 .profile-tile.focused .avatar { box-shadow: 0 0 0 .3rem var(--ring), 0 0 0 .7rem var(--glow); }
 .profile-tile.focused span { color: var(--text); }
-.profile-tile.current span::after { content: " ✓"; color: var(--accent); }
+.profile-tile.current > span::after { content: " ✓"; color: var(--accent); }
 
 .avatar.photo { overflow: hidden; background: var(--surface-3); }
 .avatar.photo img { width: 100%; height: 100%; object-fit: cover; }
@@ -393,14 +393,31 @@ body.no-backdrop #backdrop .layer.on { opacity: 0; }
 .icon-label { font-size: 1rem; text-align: center; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .icon-choice small { font-size: .8rem; color: var(--text-3); }
 
-/* ---------- Google sign-in */
-.dialog.google { width: 56rem; padding: 2.2rem 0 1.2rem; }
-.google-body { display: flex; gap: 2.4rem; align-items: center; padding: 1rem 2.2rem 1.6rem; }
-.google-body .qr { width: 16rem; height: 16rem; border-radius: var(--radius); background: #fff; padding: .6rem; image-rendering: pixelated; }
-.google-steps p { padding: 0; margin-bottom: .4rem; }
-.google-url { font-family: var(--font-display); font-size: 1.6rem; color: var(--brand-bright); margin-bottom: 1.2rem; }
-.google-code { font-family: var(--font-display); font-size: 3.2rem; font-weight: 600; letter-spacing: .12em; margin-bottom: 1.2rem; }
-.google-status { color: var(--text-3); font-size: 1.05rem; }
+/* ---------- parent PIN, kids mode */
+.dialog.pin { width: 30rem; min-width: 0; padding: 2.2rem; text-align: center; }
+.dialog.pin h2, .dialog.pin p { padding-left: 0; padding-right: 0; }
+.pin-dots { display: flex; justify-content: center; gap: 1rem; margin: 1rem 0 1.6rem; }
+.pin-dots i { width: 1.1rem; height: 1.1rem; border-radius: 50%; border: .15rem solid var(--text-3); }
+.pin-dots i.on { background: var(--brand-bright); border-color: var(--brand-bright); }
+.pin-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: .7rem; }
+.pin-pad .key { height: 4rem; font-size: 1.8rem; font-family: var(--font-display); }
+.pin-pad .key.ok { background: var(--brand-deep); }
+.avatar-wrap { position: relative; display: inline-block; }
+.kids-badge {
+  position: absolute; left: 50%; bottom: -.4rem; transform: translateX(-50%); padding: .1rem .5rem; border-radius: .4rem;
+  background: #fbbc04; color: #202124; font-family: var(--font-display); font-weight: 700; font-size: .7rem; letter-spacing: .08em;
+}
+.round-btn.avatar-btn .kids-badge { font-size: .5rem; bottom: -.3rem; }
+.kids-chip { padding: .35rem .9rem; border-radius: 999px; background: rgba(251, 188, 4, .16); color: #fdd663; font-size: 1.05rem; font-weight: 600; }
+.kids-chip[hidden] { display: none; }
+.timeup {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.2rem;
+  background: radial-gradient(ellipse at 50% 40%, var(--charcoal), #101114 75%); text-align: center; animation: fade var(--t-med) both;
+}
+.timeup .icon.big { width: 7rem; height: 7rem; color: #fdd663; }
+.timeup h1 { font-family: var(--font-display); font-size: 3rem; font-weight: 600; }
+.timeup p { font-size: 1.4rem; color: var(--text-2); margin-bottom: 1.4rem; }
+.timeup-actions { width: 34rem; background: var(--surface); border-radius: var(--radius-lg); padding: .6rem 0; }
 
 /* ---------- ambient mode */
 .ambient { position: absolute; inset: 0; background: #000; overflow: hidden; animation: fade 1.2s both; cursor: none; }

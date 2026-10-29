@@ -25,6 +25,7 @@ public sealed class MainForm : Form, IHostWindow
     KeyboardHook? _hook;
     Gamepad? _gamepad;
     FullscreenOnLaunch? _fullscreen;
+    readonly System.Windows.Forms.Timer _kidsTimer = new() { Interval = 60_000 };
 
     public MainForm(LaunchOptions options, Services services)
     {
@@ -76,6 +77,8 @@ public sealed class MainForm : Form, IHostWindow
 
         _hook = new KeyboardHook(OnGlobalKeyDown);
         _fullscreen = new FullscreenOnLaunch();
+        _kidsTimer.Tick += (_, _) => CountKidsMinute();
+        _kidsTimer.Start();
         if (_svc.Settings.Current.Input.GamepadEnabled)
         {
             _gamepad = new Gamepad(() => ActiveForm == this, key => _bridge.Emit("key", key), GoHome);
@@ -205,6 +208,42 @@ public sealed class MainForm : Form, IHostWindow
 
     public void Quit() => BeginInvoke(Close);
 
+    public string? PickImage()
+    {
+        using var dialog = new OpenFileDialog
+        {
+            Title = "Choose an icon",
+            Filter = "Pictures and programs (*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.ico;*.exe)|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.ico;*.exe|All files (*.*)|*.*",
+            InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures),
+        };
+        return dialog.ShowDialog(this) == DialogResult.OK ? dialog.FileName : null;
+    }
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    struct LastInputInfo
+    {
+        public uint Size;
+        public uint Time;
+    }
+
+    [DllImport("user32.dll")]
+    static extern bool GetLastInputInfo(ref LastInputInfo info);
+
+    // Kids screen time: a minute counts when someone used the remote recently or an app is in front (e.g. a video)
+    void CountKidsMinute()
+    {
+        if (_svc.Kids.ActiveRules is null) return;
+        var info = new LastInputInfo { Size = (uint)Marshal.SizeOf<LastInputInfo>() };
+        var idleMs = GetLastInputInfo(ref info) ? (uint)Environment.TickCount - info.Time : 0;
+        if (idleMs > 120_000 && ActiveForm == this) return;
+        if (_svc.Kids.CountMinute())
+        {
+            Log.Info("Kids screen time is up");
+            GoHome();
+        }
+        _bridge.Emit("kids", _svc.Kids.Status());
+    }
+
     public void BeforeLaunch(AppEntry app)
     {
         var launch = _svc.Settings.Current.Launch;
@@ -240,6 +279,7 @@ public sealed class MainForm : Form, IHostWindow
         _hook?.Dispose();
         _gamepad?.Dispose();
         _fullscreen?.Dispose();
+        _kidsTimer.Dispose();
         base.OnFormClosed(e);
     }
 }

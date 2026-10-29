@@ -86,12 +86,32 @@ public sealed partial class IconSearch(SettingsStore settings) : IDisposable
         var bytes = await response.Content.ReadAsByteArrayAsync();
         if (bytes.Length > MaxDownloadBytes) throw new InvalidOperationException("That image is too large");
 
+        Log.Info($"New icon for {appId} from {uri.Host}");
+        return await SaveAsync(appId, bytes);
+    }
+
+    /// <summary>Uses a picture from this PC. Programs, shortcuts and .ico files give their own icon.</summary>
+    public async Task<string> UseFileAsync(string appId, string path)
+    {
+        var ext = Path.GetExtension(path).ToLowerInvariant();
+        byte[] bytes;
+        if (ext is ".exe" or ".ico" or ".lnk" or ".dll")
+            bytes = Shell.ShellIcons.GetPng(path, 256) ?? throw new InvalidOperationException("No icon found in that file");
+        else if (new FileInfo(path).Length > MaxDownloadBytes)
+            throw new InvalidOperationException("That image is too large");
+        else
+            bytes = await File.ReadAllBytesAsync(path);
+        Log.Info($"New icon for {appId} from a local file");
+        return await SaveAsync(appId, bytes);
+    }
+
+    async Task<string> SaveAsync(string appId, byte[] bytes)
+    {
         var png = ToSquarePng(bytes, IconSize);
         var file = FileNameFor(appId);
         Directory.CreateDirectory(Paths.CustomIcons);
         await File.WriteAllBytesAsync(Path.Combine(Paths.CustomIcons, file), png);
         settings.Update(s => s.IconOverrides[appId] = file);
-        Log.Info($"New icon for {appId} from {uri.Host}");
         return CustomIconUrl(file);
     }
 

@@ -37,9 +37,11 @@ public sealed class AppCatalog : IDisposable
         {
             _gate.Release();
         }
-        var overrides = _settings.Current.IconOverrides;
+        var icons = _settings.Current.IconOverrides;
+        var names = _settings.Current.NameOverrides;
         return _settings.Current.CustomApps.Select(ToEntry).Concat(_installed)
-            .Select(a => overrides.TryGetValue(a.Id, out var file) ? a with { Icon = IconSearch.CustomIconUrl(file) } : a)
+            .Select(a => icons.TryGetValue(a.Id, out var file) ? a with { Icon = IconSearch.CustomIconUrl(file) } : a)
+            .Select(a => names.TryGetValue(a.Id, out var name) ? a with { Name = name } : a)
             .ToList();
     }
 

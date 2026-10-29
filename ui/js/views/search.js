@@ -50,7 +50,7 @@ export function openSearch() {
 
     const needle = query.toLocaleLowerCase();
     const [apps, plex] = await Promise.all([
-      data.apps().then((all) => all.filter((a) => a.name.toLocaleLowerCase().includes(needle)).slice(0, 20)),
+      data.visibleApps().then((all) => all.filter((a) => a.name.toLocaleLowerCase().includes(needle)).slice(0, 20)),
       data.plexSearch(query).catch(() => ({ movies: [], shows: [], episodes: [] })),
     ]);
     if (mine !== generation) return;

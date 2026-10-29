@@ -42,6 +42,8 @@ public sealed class SettingsStore
             patchNode.Remove("version");
             patchNode.Remove("customApps");
             patchNode.Remove("iconOverrides");
+            patchNode.Remove("nameOverrides");
+            patchNode.Remove("_pin");
             Json.Merge(node, patchNode);
             var merged = node.Deserialize<AppSettings>(Json.Options) ?? new AppSettings();
             merged.ClientId = Current.ClientId;
@@ -57,10 +59,27 @@ public sealed class SettingsStore
         if (s.Language is not ("th" or "en")) s.Language = "th";
         s.Profiles = s.Profiles.Where(p => !string.IsNullOrWhiteSpace(p.Id)).GroupBy(p => p.Id).Select(g => g.First()).ToList();
         if (s.Profiles.Count == 0) s.Profiles.Add(Profile.CreateDefault());
+        // Exactly one admin (the Windows user); older settings files had no kinds yet
+        var admin = s.Profiles.FirstOrDefault(p => p.Kind == Profile.Admin)
+            ?? s.Profiles.FirstOrDefault(p => p.Id == Profile.DefaultId)
+            ?? s.Profiles.FirstOrDefault(p => p.Kind != Profile.Kids)
+            ?? s.Profiles[0];
         foreach (var p in s.Profiles)
         {
             if (string.IsNullOrWhiteSpace(p.Name)) p.Name = p.Id == Profile.DefaultId ? "Home" : "Profile";
             p.Favorites = p.Favorites.Where(f => !string.IsNullOrWhiteSpace(f)).Distinct().ToList();
+            p.Kind = p == admin ? Profile.Admin : p.Kind == Profile.Kids ? Profile.Kids : Profile.Standard;
+            if (p.Kind == Profile.Kids)
+            {
+                p.Rules ??= new KidsRules();
+                p.Rules.AllowedApps = p.Rules.AllowedApps.Distinct().ToList();
+                if (!ContentRatings.Levels.Contains(p.Rules.MaxRating)) p.Rules.MaxRating = "child";
+                p.Rules.DailyMinutes = Math.Clamp(p.Rules.DailyMinutes, 0, 24 * 60);
+            }
+            else
+            {
+                p.Rules = null;
+            }
         }
         if (s.Profiles.All(p => p.Id != s.ActiveProfileId)) s.ActiveProfileId = s.Profiles[0].Id;
         s.HiddenApps = s.HiddenApps.Distinct().ToList();

@@ -20,13 +20,19 @@ export async function launch(app) {
 
 const kindLabel = (app) => ({ url: t('apps.website'), exe: t('apps.program'), store: t('apps.store') }[app.kind] || t('apps.desktop'));
 
+/**
+ * Long-press menu. On the "Your apps" row: Open, Move, Remove, Rename, Change icon, Full screen.
+ * In the All apps grid the same, with Add to Your apps / Hide / Remove shortcut instead of Move/Remove.
+ * Kids profiles only get Open.
+ */
 async function appMenu(app, card, rerender) {
+  if (data.isKids()) return overlay.menu({ title: app.name, image: app.icon, items: [{ label: t('apps.open'), icon: 'play', action: () => launch(app) }] });
   const favorite = data.isFavorite(app.id);
   const hidden = data.isHidden(app.id);
   const inFavoritesRow = card.closest('[data-kind="favorites"]');
   const items = [{ label: t('apps.open'), hint: kindLabel(app), icon: 'play', action: () => launch(app) }];
-  if (favorite) {
-    if (inFavoritesRow) items.push({ label: t('apps.move'), icon: 'move', action: () => startMove(card) });
+  if (inFavoritesRow) {
+    items.push({ label: t('apps.move'), hint: t('apps.moveHint'), icon: 'move', action: () => startMove(card) });
     items.push({
       label: t('apps.removeFav'), icon: 'delete',
       action: async () => {
@@ -35,7 +41,7 @@ async function appMenu(app, card, rerender) {
         rerender();
       },
     });
-  } else {
+  } else if (!favorite) {
     items.push({
       label: t('apps.addFav'), icon: 'add',
       action: async () => {
@@ -45,7 +51,8 @@ async function appMenu(app, card, rerender) {
       },
     });
   }
-  items.push({ label: t('icons.change'), hint: t('icons.changeHint'), icon: 'photo', action: () => pickIcon(app, { rerender }) });
+  items.push({ label: t('apps.rename'), icon: 'edit', action: () => renameApp(app, rerender) });
+  items.push({ label: t('icons.change'), hint: t('icons.changeHint'), icon: 'photo', action: () => iconMenu(app, rerender) });
   if (app.kind !== 'url') {
     const windowed = data.state.settings.launch.windowedApps.includes(app.id);
     items.push({
@@ -56,6 +63,7 @@ async function appMenu(app, card, rerender) {
       },
     });
   }
+  if (inFavoritesRow) return overlay.menu({ title: app.name, image: app.icon, items });
   items.push({
     label: hidden ? t('apps.unhide') : t('apps.hide'), icon: hidden ? 'show' : 'hide',
     action: async () => {
@@ -78,6 +86,51 @@ async function appMenu(app, card, rerender) {
     });
   }
   await overlay.menu({ title: app.name, image: app.icon, items });
+}
+
+async function renameApp(app, rerender) {
+  const name = await overlay.prompt({ title: t('apps.rename'), text: t('apps.renameHint'), value: app.name, layout: 'en', allowThai: true });
+  if (name == null) return;
+  try {
+    data.state.settings = await call('apps.rename', { id: app.id, name });
+    data.invalidate('apps');
+    rerender();
+  } catch (err) {
+    toast(t('common.error', { msg: err.message }));
+  }
+}
+
+/** Change icon: a picture from this PC, a search on the internet, or back to the original. */
+async function iconMenu(app, rerender) {
+  const items = [
+    {
+      label: t('icons.fromFile'), hint: t('icons.fromFileHint'), icon: 'folder',
+      action: async () => {
+        try {
+          if (!(await call('icons.fromFile', { id: app.id }))) return;
+          await data.loadSettings();
+          data.invalidate('apps');
+          toast(t('icons.saved', { name: app.name }));
+          rerender();
+        } catch (err) {
+          toast(t('common.error', { msg: err.message }), 5000);
+        }
+      },
+    },
+    { label: t('icons.fromWeb'), hint: t('icons.changeHint'), icon: 'web', action: () => pickIcon(app, { rerender }) },
+  ];
+  if (data.state.settings.iconOverrides?.[app.id]) {
+    items.push({
+      label: t('icons.reset'), icon: 'replay',
+      action: async () => {
+        await call('icons.reset', { id: app.id });
+        await data.loadSettings();
+        data.invalidate('apps');
+        rerender();
+      },
+    });
+  }
+  await overlay.menu({ title: t('icons.change'), image: app.icon, items });
 }
 
 // Google TV-style move mode: ← → swap with neighbours, OK or Back to finish.
@@ -117,7 +170,7 @@ function startMove(card) {
 /** The favorites row. On Home it ends with a shortcut to the Apps tab when empty. */
 export function favoritesRow(apps, { rerender, withAdd = false, onEmpty } = {}) {
   const cards = apps.map((app) => appCard(app, { onActivate: launch, onMenu: (a, card) => appMenu(a, card, rerender) }));
-  if (withAdd || cards.length === 0) cards.push(actionCard(t('apps.add'), 'add', () => (withAdd ? addAppMenu(rerender) : onEmpty?.())));
+  if (!data.isKids() && (withAdd || cards.length === 0)) cards.push(actionCard(t('apps.add'), 'add', () => (withAdd ? addAppMenu(rerender) : onEmpty?.())));
   const section = row(t('row.apps'), cards, { kind: 'favorites' });
   section.addEventListener('tvfocus', () => router.setBackdrop(null));
   return section;
@@ -181,6 +234,14 @@ export async function renderApps(container, ctx) {
   const [all, favorites] = await Promise.all([data.apps(), data.favoriteApps()]);
   if (ctx.stale()) return;
   container.replaceChildren();
+
+  // Kids see only the apps their parent allowed, with nothing to add or edit
+  if (data.isKids()) {
+    const grid = h('div', { class: 'grid apps', dataset: { nav: 'grid' } }, favorites.map((app) => appCard(app, { onActivate: launch })));
+    container.append(h('section', { class: 'grid-sec' }, h('h2', { class: 'row-title', style: { padding: '0 0 1rem' } }, t('row.kidsApps')), grid));
+    if (!favorites.length) container.append(h('div', { class: 'empty' }, t('parental.noApps')));
+    return;
+  }
 
   container.append(favoritesRow(favorites, { rerender: ctx.rerender, withAdd: true }));
 

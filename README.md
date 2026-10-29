@@ -99,30 +99,34 @@ and put a shortcut to `XLauncher.exe` in `shell:startup`.
 
 Settings, logs and caches live in `%LOCALAPPDATA%\XLauncher`. `xlauncher.log` never contains Plex tokens.
 
-## Sign in with Google (profiles)
+## Profiles and kids mode
 
-A profile can take its name and photo from a Google account. The TV shows a QR code and a short code;
-you approve on a phone at google.com/device. Tokens are used once and are never stored. To enable this:
+- **Admin**: the Windows user. The name and photo come from the Windows account and refresh on every start.
+- **Standard** profiles (e.g. Mom): local profiles, each with its own *Your apps* row.
+- **Kids** profiles: limited by the parent.
+  - **Settings › Parental controls** (admin, or anyone with the parent PIN) sets, per child:
+    - the allowed apps (in the order the child sees them);
+    - the allowed Plex libraries;
+    - a content-rating ceiling (young kids / kids / teens / no limit);
+    - a daily screen-time limit;
+    - extra time for today.
+  - The limits are enforced by the host as well as the UI. A kids profile:
+    - cannot open other apps, other libraries or titles above its rating;
+    - cannot open Settings or switch profile without the **parent PIN** (a salted hash in
+      `%LOCALAPPDATA%\XLauncher\parent-pin.json`).
+  - Screen time counts while the child uses the remote or an app is open. When it runs out, X Launcher
+    comes back to the front and shows a lock screen until a parent adds time or switches the user.
 
-1. In [Google Cloud Console](https://console.cloud.google.com/), create a project, set up the OAuth
-   consent screen, and create an **OAuth client ID** of type **TVs and Limited Input devices**.
-2. Save its client ID and secret as `google-oauth.json`. You can paste the JSON the console downloads,
-   or use this shape:
-   ```json
-   { "client_id": "1234-abc.apps.googleusercontent.com", "client_secret": "GOCSPX-..." }
-   ```
-3. Put the file in one of these places:
-   - next to `XLauncher.exe`, or in `%LOCALAPPDATA%\XLauncher` on one PC;
-   - in `src/XLauncher/` before running `build-installer.ps1`, to ship it in the setup.
+## App menu, icons and full screen
 
-   The file is git-ignored.
-
-## App icons and full screen
-
-- **Change icon** (hold OK on an app) searches the internet for large icons and lets you pick one.
-  It searches App Store artwork and the website's own icons. The setup also offers this right after you add an app.
-- Apps opened from X Launcher are made **full screen**: normal windows become borderless and fill the TV,
-  and Store apps get Windows' full-screen mode. You can turn this off per app (hold OK) or for all apps (Settings › Apps).
+Hold OK on an app in *Your apps* for:
+- **Move**;
+- **Remove**;
+- **Rename**;
+- **Change icon**: pick a picture or .exe/.ico on this PC, or search the internet (App Store artwork and the
+  website's own icons), or go back to the original. New apps offer the internet search right after they are added.
+- **Open full screen**: apps opened from X Launcher fill the TV. Normal windows become borderless; Store apps get
+  Windows' full-screen mode. You can turn this off per app here, or for all apps in Settings › Apps.
 
 ## Remote buttons
 

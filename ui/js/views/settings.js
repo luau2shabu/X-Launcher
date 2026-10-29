@@ -6,13 +6,22 @@ import * as data from '../data.js';
 import * as focus from '../focus.js';
 import * as overlay from '../components/overlay.js';
 import { logo } from '../brand.js';
+import { requirePin, setPin } from '../components/pin.js';
 
 const IDLE_STEPS = [1, 3, 5, 10, 15, 30, 60];
+const LIMIT_STEPS = [0, 30, 60, 90, 120, 180, 240];
+const RATING_STEPS = ['young', 'child', 'teen', 'all'];
 
 /**
  * @param {object} app  shell callbacks: setLanguage(lang), rerender(), openProfiles(), startAmbient(), showHiddenApps()
  */
-export function openSettings(app) {
+export async function openSettings(app) {
+  // On a kids profile, Settings is for parents only
+  if (data.isKids()) {
+    const pin = await requirePin(t('pin.toSettings'));
+    if (pin == null) return;
+    data.state.unlockPin = pin;
+  }
   const head = h('div', { class: 'drawer-head' });
   const list = h('div', { class: 'list' });
   const drawer = h('div', { class: 'drawer' }, head, list);
@@ -24,6 +33,7 @@ export function openSettings(app) {
         const leaving = stack.pop();
         render(stack[stack.length - 1].returnTo ?? 0, leaving);
       } else {
+        data.state.unlockPin = null;
         closeNow();
       }
     },
@@ -93,6 +103,17 @@ export function openSettings(app) {
         },
         { icon: 'server', label: t('settings.plex'), sub: servers.length ? t('settings.plexServers', { n: servers.length }) : t('settings.plexNone'), next: true, action: () => push(plexPane) },
         { icon: 'apps', label: t('settings.apps'), next: true, action: () => push(appsPane) },
+        {
+          icon: 'shield', label: t('parental.title'), sub: t('parental.sub'), next: true,
+          action: async () => {
+            // Only the admin manages children; anyone else needs the parent PIN
+            if (!data.isAdmin() && !data.state.unlockPin) {
+              const pin = await requirePin(t('pin.toParental'));
+              if (pin == null) return;
+            }
+            push(parentalPane);
+          },
+        },
         { icon: 'photo', label: t('settings.ambient'), value: data.state.settings.ambient.enabled ? t('settings.on') : t('settings.off'), next: true, action: () => push(ambientPane) },
         { icon: 'display', label: t('settings.display'), sub: t('settings.opensWindows'), action: () => windows('display') },
         { icon: 'hdr', label: t('settings.hdr'), sub: t('settings.opensWindows'), action: () => windows('hdr') },
@@ -206,6 +227,98 @@ export function openSettings(app) {
       ];
     },
   };
+
+  // ---- parental controls (kids profiles)
+
+  const parentalPane = {
+    head: titleHead('parental.title'),
+    items: async () => {
+      const pinSet = (await call('pin.status')).set;
+      const kids = data.state.settings.profiles.filter((p) => p.kind === 'kids');
+      return [
+        { icon: 'shield', label: pinSet ? t('pin.change') : t('pin.setup'), value: pinSet ? t('settings.on') : t('settings.off'), action: async () => { await setPin(); rerenderPane(); } },
+        ...kids.map((kid) => ({
+          icon: 'tv', label: kid.name, sub: limitText(kid.rules.dailyMinutes) + ' · ' + t(`rating.${kid.rules.maxRating}`), next: true,
+          action: () => push(kidsPane(kid.id)),
+        })),
+        { icon: 'add', label: t('parental.addKid'), action: () => { close(); app.openProfiles(); } },
+      ];
+    },
+  };
+
+  const kid = (id) => data.state.settings.profiles.find((p) => p.id === id);
+  const limitText = (minutes) => (minutes ? t('settings.minutes', { n: minutes }) : t('parental.noLimit'));
+  const next = (steps, value) => steps[(steps.indexOf(value) + 1) % steps.length];
+
+  async function saveRules(id, mutate) {
+    const profiles = structuredClone(data.state.settings.profiles);
+    mutate(profiles.find((p) => p.id === id).rules);
+    await data.updateSettings({ profiles });
+    rerenderPane();
+  }
+
+  function kidsPane(id) {
+    return {
+      head: () => [h('div', { class: 'title' }, kid(id).name), h('div', { class: 'sub' }, t('profiles.kind.kids'))],
+      items: async () => {
+        const p = kid(id);
+        const rules = p.rules;
+        const today = new Date().toLocaleDateString('sv-SE'); // yyyy-MM-dd
+        const used = p.usageDate === today ? p.usedMinutes : 0;
+        return [
+          { icon: 'timer', label: t('parental.today'), value: rules.dailyMinutes ? `${used} / ${rules.dailyMinutes}` : t('settings.minutes', { n: used }) },
+          { icon: 'timer', label: t('parental.limit'), value: limitText(rules.dailyMinutes), action: () => saveRules(id, (r) => { r.dailyMinutes = next(LIMIT_STEPS, r.dailyMinutes); }) },
+          {
+            icon: 'add', label: t('parental.addTime'),
+            action: async () => {
+              const pin = data.state.unlockPin ?? (await requirePin(t('pin.toAddTime')));
+              if (pin == null) return;
+              data.state.settings = await call('kids.addTime', { profile: id, minutes: 30, pin });
+              toast(t('parental.timeAdded', { name: p.name }));
+              rerenderPane();
+            },
+          },
+          { icon: 'shield', label: t('parental.rating'), value: t(`rating.${rules.maxRating}`), action: () => saveRules(id, (r) => { r.maxRating = next(RATING_STEPS, r.maxRating); }) },
+          { icon: 'apps', label: t('parental.apps'), value: String(rules.allowedApps.length), next: true, action: () => push(kidsAppsPane(id)) },
+          { icon: 'library', label: t('parental.libraries'), value: String(rules.allowedSections.length), next: true, action: () => push(kidsLibrariesPane(id)) },
+        ];
+      },
+    };
+  }
+
+  function kidsAppsPane(id) {
+    return {
+      head: () => [h('div', { class: 'title' }, t('parental.apps')), h('div', { class: 'sub' }, kid(id).name)],
+      items: async () => {
+        const all = (await data.apps()).filter((a) => !data.isHidden(a.id));
+        const allowed = kid(id).rules.allowedApps;
+        // Allowed apps first, in the order the child will see them
+        const sorted = [...all].sort((a, b) => (allowed.includes(b.id) - allowed.includes(a.id)) || a.name.localeCompare(b.name));
+        return sorted.map((app) => ({
+          icon: 'apps', label: app.name, toggle: allowed.includes(app.id),
+          action: () => saveRules(id, (r) => {
+            r.allowedApps = r.allowedApps.includes(app.id) ? r.allowedApps.filter((x) => x !== app.id) : [...r.allowedApps, app.id];
+          }),
+        }));
+      },
+    };
+  }
+
+  function kidsLibrariesPane(id) {
+    return {
+      head: () => [h('div', { class: 'title' }, t('parental.libraries')), h('div', { class: 'sub' }, kid(id).name)],
+      items: async () => {
+        const sections = await data.plexSections().catch(() => []);
+        const allowed = kid(id).rules.allowedSections;
+        return sections.map((s) => ({
+          icon: s.type === 'show' ? 'tv' : 'movie', label: s.title, sub: s.serverName, toggle: allowed.includes(s.id),
+          action: () => saveRules(id, (r) => {
+            r.allowedSections = r.allowedSections.includes(s.id) ? r.allowedSections.filter((x) => x !== s.id) : [...r.allowedSections, s.id];
+          }),
+        }));
+      },
+    };
+  }
 
   async function saveAmbient(patch) {
     await data.updateSettings({ ambient: patch });

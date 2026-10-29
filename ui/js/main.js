@@ -16,6 +16,7 @@ import { openSettings } from './views/settings.js';
 import { openProfiles, avatar } from './views/profiles.js';
 import { startAmbient, stopAmbient, isAmbientActive } from './views/ambient.js';
 import { logo, showSplash } from './brand.js';
+import { requirePin } from './components/pin.js';
 
 const TABS = [
   ['home', 'tab.home', renderHome],
@@ -38,7 +39,7 @@ const shell = {
 
 // Callbacks the settings drawer and profile picker use
 const app = {
-  // Rebuild the top bar too: the avatar changes with profile switches and Google sign-in
+  // Rebuild the top bar too: the avatar and kids time change with profile switches
   rerender: () => {
     buildTopbar();
     renderTab(shell.tab, { keepFocus: true });
@@ -76,17 +77,60 @@ function buildTopbar() {
   });
   const clock = h('div', { class: 'clock' }, formatClock());
   shell.clock = clock;
+  shell.kidsChip = h('div', { class: 'kids-chip', hidden: true });
   shell.topbar.replaceChildren(
     logo(),
     h('div', { class: 'round-btn focusable', dataset: { role: 'search' }, title: t('tab.search'), _activate: openSearch }, icon('search')),
     ...tabEls,
     h('div', { class: 'spacer' }),
+    shell.kidsChip,
     clock,
     h('div', { class: 'round-btn focusable', dataset: { role: 'settings' }, _activate: () => openSettings(app) }, icon('settings')),
     h('div', { class: 'round-btn avatar-btn focusable', dataset: { role: 'profile' }, _activate: () => openProfiles(app) }, avatar(data.activeProfile())),
   );
   if (wasFocused) focus.set(shell.topbar.querySelector(`[data-tab="${wasFocused}"], [data-role="${wasFocused}"]`));
+  refreshKids();
 }
+
+// ---------------------------------------------------------------- kids screen time
+
+function refreshKids() {
+  call('kids.status').then(updateKids).catch(() => {});
+}
+
+function updateKids(status) {
+  if (!shell.kidsChip) return;
+  const limited = status && status.limit > 0;
+  shell.kidsChip.hidden = !limited;
+  if (limited) shell.kidsChip.textContent = t('kids.left', { n: status.remaining });
+  if (status?.timeUp) showTimeUp();
+}
+
+let timeUpOpen = false;
+function showTimeUp() {
+  if (timeUpOpen) return;
+  timeUpOpen = true;
+  stopAmbient();
+  let close;
+  const done = () => { timeUpOpen = false; close(); };
+  const box = h('div', { class: 'timeup' },
+    icon('timer', 'icon big'),
+    h('h1', null, t('kids.timeUp')),
+    h('p', null, t('kids.timeUpText')),
+    h('div', { dataset: { nav: 'list' }, class: 'timeup-actions' },
+      h('div', { class: 'item focusable', _activate: async () => {
+        const pin = await requirePin(t('pin.toAddTime'));
+        if (pin == null) return;
+        data.state.settings = await call('kids.addTime', { profile: data.activeProfile().id, minutes: 30, pin });
+        done();
+        refreshKids();
+      } }, icon('add'), h('span', { class: 'label' }, t('kids.moreTime'))),
+      h('div', { class: 'item focusable', _activate: () => { done(); openProfiles(app); } }, icon('person'), h('span', { class: 'label' }, t('kids.switchUser')))));
+  // Back does nothing here: only a parent can unlock
+  close = overlay.open(box, { onBack: () => {} });
+}
+
+on('kids', updateKids);
 
 const tabEl = (name) => shell.topbar.querySelector(`[data-tab="${name}"]`);
 
@@ -177,6 +221,7 @@ function closeOverlays() {
   while (overlay.isOpen()) {
     const scope = focus.top();
     if (!scope || scope.root.parentElement?.id !== 'overlay') break;
+    if (scope.root.querySelector('.timeup')) break; // the screen-time lock stays until a parent unlocks it
     scope.onBack?.();
     // a pane-based overlay (settings) may need several Backs; give up if it did not close
     if (scope === focus.top()) {

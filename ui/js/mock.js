@@ -92,12 +92,17 @@ let apps = APP_DEFS.map(([name, color, letter], i) => ({
 }));
 
 const SETTINGS_KEY = 'xlauncher-mock-settings';
-let mockPolls = 0;
+let mockPin = null;
+const today = () => new Date().toLocaleDateString('sv-SE');
 function defaultSettings() {
   return {
     version: 1, language: 'th', clientId: 'mock', appsSeeded: true, activeProfileId: 'default',
-    profiles: [{ id: 'default', name: 'Home', color: '#3ba3cc', favorites: apps.slice(0, 7).map((a) => a.id) }],
-    hiddenApps: [], customApps: [], iconOverrides: {}, launch: { fullscreen: true, windowedApps: [] },
+    profiles: [
+      { id: 'default', name: 'Somchai J.', kind: 'admin', color: '#3ba3cc', picture: iconSvg('S', '#81c995'), favorites: apps.slice(0, 7).map((a) => a.id) },
+      { id: 'kid1', name: 'น้องมิว', kind: 'kids', color: '#fdd663', favorites: [], usageDate: today(), usedMinutes: 25,
+        rules: { allowedApps: [apps[2].id, apps[5].id], allowedSections: ['mock-server/2'], maxRating: 'child', dailyMinutes: 90 } },
+    ],
+    hiddenApps: [], customApps: [], iconOverrides: {}, nameOverrides: {}, launch: { fullscreen: true, windowedApps: [] },
     plex: { enabled: true, localUrl: 'http://127.0.0.1:32400', useAccountServers: true, htpcPath: '', hiddenSections: [] },
     ambient: { enabled: true, idleMinutes: 5, source: 'plex', folder: '', showClock: true },
     input: { homeKeys: [172], gamepadEnabled: true },
@@ -119,7 +124,14 @@ const shows = items.filter((i) => i.type === 'show');
 
 const handlers = {
   'settings.get': () => settings,
-  'settings.update': (p) => { const { clientId, customApps, ...rest } = p; merge(settings, rest); save(); return settings; },
+  'settings.update': (p) => {
+    const { clientId, customApps, _pin, ...rest } = p;
+    const active = settings.profiles.find((x) => x.id === settings.activeProfileId);
+    if (active?.kind === 'kids' && mockPin != null && _pin !== mockPin) throw new Error('Parent PIN required');
+    merge(settings, rest);
+    save();
+    return settings;
+  },
   'apps.list': () => [...settings.customApps.map((c) => ({ ...c, custom: true, icon: null })), ...apps],
   'apps.launch': (p) => { console.info('[mock] launch', p.id); return true; },
   'apps.addWebsite': (p) => {
@@ -205,20 +217,33 @@ const handlers = {
     return app?.icon;
   },
   'icons.reset': (p) => { delete settings.iconOverrides[p.id]; save(); return true; },
-  'google.status': () => ({ configured: true }),
-  'google.start': () => ({ session: 'mock', userCode: 'WXYZ-ABCD', verificationUrl: 'https://www.google.com/device', qr: iconSvg('QR', '#202124'), expiresIn: 900, interval: 2 }),
-  'google.poll': () => {
-    mockPolls += 1;
-    if (mockPolls < 3) return { status: 'pending' };
-    mockPolls = 0;
-    const profile = settings.profiles.find((x) => x.name === 'Google') || settings.profiles[0];
-    Object.assign(profile, { name: 'Somchai J.', email: 'somchai@example.com', picture: iconSvg('S', '#81c995') });
+  'icons.fromFile': (p) => {
+    const app = apps.find((a) => a.id === p.id);
+    if (app) app.icon = iconSvg('F', '#c58af9');
+    settings.iconOverrides[p.id] = 'file.png';
     save();
-    return { status: 'done', settings };
+    return app?.icon;
   },
-  'google.signOut': (p) => {
-    const profile = settings.profiles.find((x) => x.id === p.profile);
-    if (profile) { profile.email = null; profile.picture = null; }
+  'apps.rename': (p) => {
+    const app = apps.find((a) => a.id === p.id);
+    if (app) app.name = p.name || app.name;
+    settings.nameOverrides[p.id] = p.name;
+    save();
+    return settings;
+  },
+  'pin.status': () => ({ set: mockPin != null }),
+  'pin.verify': (p) => mockPin == null || p.pin === mockPin,
+  'pin.set': (p) => { if (mockPin != null && p.current !== mockPin) throw new Error('The current PIN is wrong'); mockPin = p.pin; return true; },
+  'kids.status': () => {
+    const p = settings.profiles.find((x) => x.id === settings.activeProfileId);
+    if (p.kind !== 'kids') return null;
+    const used = p.usageDate === today() ? p.usedMinutes : 0;
+    const limit = p.rules.dailyMinutes;
+    return { used, limit, remaining: limit ? Math.max(0, limit - used) : null, timeUp: limit > 0 && used >= limit };
+  },
+  'kids.addTime': (p) => {
+    const kid = settings.profiles.find((x) => x.id === p.profile);
+    kid.usedMinutes = Math.max(0, kid.usedMinutes - (p.minutes || 30));
     save();
     return settings;
   },

@@ -19,6 +19,7 @@ public sealed class PlexService : IDisposable
     static readonly TimeSpan ServerTtl = TimeSpan.FromMinutes(20);
 
     readonly SettingsStore _settings;
+    readonly KidsGuard _kids;
     readonly HttpClient _http;
     readonly SemaphoreSlim _serverGate = new(1, 1);
     readonly ConcurrentDictionary<string, (DateTime At, object Value)> _cache = new();
@@ -26,9 +27,10 @@ public sealed class PlexService : IDisposable
     IReadOnlyList<PlexServer> _servers = [];
     DateTime _serversAt = DateTime.MinValue;
 
-    public PlexService(SettingsStore settings)
+    public PlexService(SettingsStore settings, KidsGuard kids)
     {
         _settings = settings;
+        _kids = kids;
         _http = new HttpClient(new SocketsHttpHandler
         {
             ConnectTimeout = TimeSpan.FromSeconds(4),
@@ -273,7 +275,7 @@ public sealed class PlexService : IDisposable
                             var id = $"{server.Id}/{d.Str("key")}";
                             return new PlexSection(id, server.Id, server.Name, d.Str("key") ?? "", d.Str("title") ?? "", d.Str("type")!,
                                 PlexMapper.ImageUrl(server.Id, d.Str("art") ?? d.Str("composite"), PlexMapper.LandscapeW, PlexMapper.LandscapeH),
-                                hidden.Contains(id));
+                                hidden.Contains(id) || !_kids.CanSeeSection(id));
                         })
                         .ToList();
                 }
@@ -347,12 +349,13 @@ public sealed class PlexService : IDisposable
 
     public async Task<object> AllAsync(string serverId, string sectionKey, int start, int size, string sort, bool unwatched)
     {
+        if (!_kids.CanSeeSection($"{serverId}/{sectionKey}")) throw new UnauthorizedAccessException("This library is not allowed for this profile");
         var server = await RequireServerAsync(serverId);
         var allowedSort = sort is "titleSort" or "addedAt:desc" or "year:desc" or "audienceRating:desc" or "lastViewedAt:desc" ? sort : "titleSort";
         var query = $"/library/sections/{sectionKey}/all?sort={allowedSort}&X-Plex-Container-Start={Math.Max(0, start)}&X-Plex-Container-Size={Math.Clamp(size, 1, 200)}";
         if (unwatched) query += "&unwatched=1";
         var container = await GetAsync(server, query);
-        var items = PlexMapper.Items(container, server.Id, server.Name);
+        var items = Visible(PlexMapper.Items(container, server.Id, server.Name));
         return new { items, total = container.Int("totalSize", start + items.Count) };
     }
 
@@ -360,7 +363,8 @@ public sealed class PlexService : IDisposable
     {
         var server = await RequireServerAsync(serverId);
         var container = await GetAsync(server, $"/library/metadata/{Uri.EscapeDataString(key)}?includeOnDeck=1");
-        return PlexMapper.Items(container, server.Id, server.Name).FirstOrDefault();
+        return Visible(PlexMapper.Items(container, server.Id, server.Name)).FirstOrDefault()
+            ?? throw new UnauthorizedAccessException("This title is not allowed for this profile");
     }
 
     public async Task<List<PlexItem>> ChildrenAsync(string serverId, string key)
@@ -383,7 +387,7 @@ public sealed class PlexService : IDisposable
             try
             {
                 var container = await GetAsync(server, $"/hubs/search?query={Uri.EscapeDataString(query.Trim())}&limit=12&includeCollections=0");
-                return container.Arr("Hub").SelectMany(h => PlexMapper.Items(h, server.Id, server.Name)).ToList();
+                return Visible(container.Arr("Hub").SelectMany(h => PlexMapper.Items(h, server.Id, server.Name)).ToList());
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
             {
@@ -445,7 +449,11 @@ public sealed class PlexService : IDisposable
     }
 
     async Task<List<PlexItem>> ListAsync(PlexServer server, string path) =>
-        PlexMapper.Items(await GetAsync(server, path), server.Id, server.Name);
+        Visible(PlexMapper.Items(await GetAsync(server, path), server.Id, server.Name));
+
+    /// <summary>Drops titles a kids profile may not see (library not allowed or rating too high).</summary>
+    List<PlexItem> Visible(List<PlexItem> items) =>
+        _kids.ActiveRules is null ? items : items.Where(i => _kids.CanSee(i.Server, i.SectionKey, i.ContentRating, i.Type)).ToList();
 
     async Task<PlexServer> RequireServerAsync(string id) =>
         await ServerAsync(id) ?? throw new InvalidOperationException("That Plex server is not reachable right now");
