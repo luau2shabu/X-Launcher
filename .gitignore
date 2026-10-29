@@ -5,3 +5,6 @@ dist/
 .vs/
 *.user
 TestResults/
+
+# Google OAuth client for sign-in (keep out of the public repo)
+google-oauth.json

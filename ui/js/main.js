@@ -38,7 +38,11 @@ const shell = {
 
 // Callbacks the settings drawer and profile picker use
 const app = {
-  rerender: () => renderTab(shell.tab, { keepFocus: true }),
+  // Rebuild the top bar too: the avatar changes with profile switches and Google sign-in
+  rerender: () => {
+    buildTopbar();
+    renderTab(shell.tab, { keepFocus: true });
+  },
   setLanguage: async (lang) => {
     await data.updateSettings({ language: lang });
     setLang(lang);

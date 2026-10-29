@@ -13,6 +13,9 @@ public sealed class AppSettings
     public List<Profile> Profiles { get; set; } = [Profile.CreateDefault()];
     public List<string> HiddenApps { get; set; } = [];
     public List<CustomApp> CustomApps { get; set; } = [];
+    /// <summary>App id -> file name in %LOCALAPPDATA%\XLauncher\icons, for icons the user picked from the web.</summary>
+    public Dictionary<string, string> IconOverrides { get; set; } = [];
+    public LaunchBehavior Launch { get; set; } = new();
     public PlexOptions Plex { get; set; } = new();
     public AmbientOptions Ambient { get; set; } = new();
     public InputOptions Input { get; set; } = new();
@@ -30,6 +33,10 @@ public sealed class Profile
     public string Name { get; set; } = "";
     public string Color { get; set; } = "#3ba3cc";
     public List<string> Favorites { get; set; } = [];
+    /// <summary>Set when the profile is signed in with Google.</summary>
+    public string? Email { get; set; }
+    /// <summary>Profile photo URL served by the host (img.xlauncher.local/avatar/...), or null.</summary>
+    public string? Picture { get; set; }
 
     public static Profile CreateDefault() => new() { Id = DefaultId, Name = "Home", Color = "#3ba3cc" };
 }
@@ -46,6 +53,14 @@ public sealed class CustomApp
     public string Arguments { get; set; } = "";
     /// <summary>For websites: open with a Smart-TV user agent so sites like YouTube serve their remote-friendly TV UI.</summary>
     public bool TvMode { get; set; }
+}
+
+public sealed class LaunchBehavior
+{
+    /// <summary>Make an app's window cover the whole screen after it opens.</summary>
+    public bool Fullscreen { get; set; } = true;
+    /// <summary>App ids that should keep their normal window.</summary>
+    public List<string> WindowedApps { get; set; } = [];
 }
 
 public sealed class PlexOptions

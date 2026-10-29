@@ -7,8 +7,6 @@ const BRAND_COLORS = {
   'disney+': '#0b3d91', spotify: '#1db954', plex: '#e5a00d', 'plex htpc': '#1f1f1f', kodi: '#17b2e7', steam: '#1b2838',
 };
 
-const tileColors = new Map();
-
 export function row(title, cards, opts = {}) {
   const section = h('section', { class: `row ${opts.class || ''}`, dataset: { nav: 'row', kind: opts.kind || '' } },
     title ? h('h2', { class: 'row-title' }, title) : null,
@@ -23,61 +21,29 @@ export function skeletonRow(kind = 'landscape', count = 7) {
 
 // ---------------------------------------------------------------- apps
 
+/** App tile: large icon on a neutral tile with the name always visible underneath. */
 export function appCard(app, { onActivate, onMenu, hidden } = {}) {
-  const letter = h('span', { class: 'letter' }, initials(app.name));
   const card = h('div', {
     class: `card app focusable ${hidden ? 'hidden-app' : ''}`,
     dataset: { id: app.id },
     _activate: () => onActivate?.(app, card),
     _menu: onMenu ? () => onMenu(app, card) : null,
   },
-  h('div', { class: 'frame' }, app.icon ? img(app.icon, 'logo', letter) : letter),
-  app.icon ? null : h('span', { class: 'name-in' }, app.name),
-  h('span', { class: 'cap' }, app.name));
-  paintTile(card, app);
+  h('div', { class: 'frame' },
+    appIcon(app),
+    h('span', { class: 'app-name' }, app.name)));
   return card;
+}
+
+/** The app's icon, or (for websites without one) a colored rounded square with its first letter. */
+export function appIcon(app, cls = 'app-icon') {
+  const letter = h('span', { class: `${cls} letter`, style: { background: BRAND_COLORS[app.name.toLowerCase()] || hashColor(app.name, 50, 38) } }, initials(app.name));
+  return app.icon ? img(app.icon, cls, letter) : letter;
 }
 
 export function actionCard(label, iconName, onActivate, kind = 'app add') {
   return h('div', { class: `card ${kind} focusable`, _activate: onActivate },
-    h('div', { class: 'frame' }, icon(iconName)),
-    h('span', { class: 'cap' }, label));
-}
-
-// Tile background: the icon's average color (darkened) so the logo stands out;
-// tiles without an icon (websites) use the brand color or a stable color from the name.
-function paintTile(card, app) {
-  if (!app.icon) return card.style.setProperty('--tile', BRAND_COLORS[app.name.toLowerCase()] || hashColor(app.name, 45, 32));
-  if (tileColors.has(app.id)) return card.style.setProperty('--tile', tileColors.get(app.id));
-  const probe = new Image();
-  probe.crossOrigin = 'anonymous';
-  probe.onload = () => {
-    const color = averageColor(probe) || hashColor(app.name, 45, 32);
-    tileColors.set(app.id, color);
-    card.style.setProperty('--tile', color);
-  };
-  probe.src = app.icon;
-}
-
-function averageColor(image) {
-  try {
-    const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = 24;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    ctx.drawImage(image, 0, 0, 24, 24);
-    const { data } = ctx.getImageData(0, 0, 24, 24);
-    let r = 0, g = 0, b = 0, n = 0;
-    for (let i = 0; i < data.length; i += 4) {
-      if (data[i + 3] < 128) continue;
-      r += data[i]; g += data[i + 1]; b += data[i + 2]; n++;
-    }
-    if (!n) return null;
-    // Darken so white logos stay readable
-    const k = 0.55 / n;
-    return `rgb(${Math.round(r * k)} ${Math.round(g * k)} ${Math.round(b * k)})`;
-  } catch {
-    return null;
-  }
+    h('div', { class: 'frame' }, h('span', { class: 'app-icon glyph' }, icon(iconName)), h('span', { class: 'app-name' }, label)));
 }
 
 // ---------------------------------------------------------------- media

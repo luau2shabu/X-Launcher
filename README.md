@@ -99,6 +99,31 @@ and put a shortcut to `XLauncher.exe` in `shell:startup`.
 
 Settings, logs and caches live in `%LOCALAPPDATA%\XLauncher`. `xlauncher.log` never contains Plex tokens.
 
+## Sign in with Google (profiles)
+
+A profile can take its name and photo from a Google account. The TV shows a QR code and a short code;
+you approve on a phone at google.com/device. Tokens are used once and are never stored. To enable this:
+
+1. In [Google Cloud Console](https://console.cloud.google.com/), create a project, set up the OAuth
+   consent screen, and create an **OAuth client ID** of type **TVs and Limited Input devices**.
+2. Save its client ID and secret as `google-oauth.json`. You can paste the JSON the console downloads,
+   or use this shape:
+   ```json
+   { "client_id": "1234-abc.apps.googleusercontent.com", "client_secret": "GOCSPX-..." }
+   ```
+3. Put the file in one of these places:
+   - next to `XLauncher.exe`, or in `%LOCALAPPDATA%\XLauncher` on one PC;
+   - in `src/XLauncher/` before running `build-installer.ps1`, to ship it in the setup.
+
+   The file is git-ignored.
+
+## App icons and full screen
+
+- **Change icon** (hold OK on an app) searches the internet for large icons and lets you pick one.
+  It searches App Store artwork and the website's own icons. The setup also offers this right after you add an app.
+- Apps opened from X Launcher are made **full screen**: normal windows become borderless and fill the TV,
+  and Store apps get Windows' full-screen mode. You can turn this off per app (hold OK) or for all apps (Settings › Apps).
+
 ## Remote buttons
 
 | Remote / keyboard          | Action                              |

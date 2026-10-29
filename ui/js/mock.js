@@ -92,11 +92,12 @@ let apps = APP_DEFS.map(([name, color, letter], i) => ({
 }));
 
 const SETTINGS_KEY = 'xlauncher-mock-settings';
+let mockPolls = 0;
 function defaultSettings() {
   return {
     version: 1, language: 'th', clientId: 'mock', appsSeeded: true, activeProfileId: 'default',
     profiles: [{ id: 'default', name: 'Home', color: '#3ba3cc', favorites: apps.slice(0, 7).map((a) => a.id) }],
-    hiddenApps: [], customApps: [],
+    hiddenApps: [], customApps: [], iconOverrides: {}, launch: { fullscreen: true, windowedApps: [] },
     plex: { enabled: true, localUrl: 'http://127.0.0.1:32400', useAccountServers: true, htpcPath: '', hiddenSections: [] },
     ambient: { enabled: true, idleMinutes: 5, source: 'plex', folder: '', showClock: true },
     input: { homeKeys: [172], gamepadEnabled: true },
@@ -190,6 +191,37 @@ const handlers = {
   'system.power': (p) => { console.info('[mock] power', p.action); return true; },
   'system.openSettings': (p) => { console.info('[mock] open settings', p.page); return true; },
   'system.pickFolder': () => null,
+  'icons.search': async (p) => {
+    await sleep(700);
+    return [0, 1, 2, 3, 4].map((i) => ({
+      url: iconSvg(p.name[0].toUpperCase(), `hsl(${(i * 70 + 200) % 360} 65% 45%)`), label: `${p.name} ${i + 1}`, source: i < 2 ? 'web' : 'store', size: 512,
+    }));
+  },
+  'icons.use': (p) => {
+    settings.iconOverrides[p.id] = 'mock.png';
+    const app = apps.find((a) => a.id === p.id);
+    if (app) app.icon = iconSvg('★', '#3ba3cc');
+    save();
+    return app?.icon;
+  },
+  'icons.reset': (p) => { delete settings.iconOverrides[p.id]; save(); return true; },
+  'google.status': () => ({ configured: true }),
+  'google.start': () => ({ session: 'mock', userCode: 'WXYZ-ABCD', verificationUrl: 'https://www.google.com/device', qr: iconSvg('QR', '#202124'), expiresIn: 900, interval: 2 }),
+  'google.poll': () => {
+    mockPolls += 1;
+    if (mockPolls < 3) return { status: 'pending' };
+    mockPolls = 0;
+    const profile = settings.profiles.find((x) => x.name === 'Google') || settings.profiles[0];
+    Object.assign(profile, { name: 'Somchai J.', email: 'somchai@example.com', picture: iconSvg('S', '#81c995') });
+    save();
+    return { status: 'done', settings };
+  },
+  'google.signOut': (p) => {
+    const profile = settings.profiles.find((x) => x.id === p.profile);
+    if (profile) { profile.email = null; profile.picture = null; }
+    save();
+    return settings;
+  },
   'ui.ready': (p) => { console.info('[mock] ui ready', p.summary); return true; },
   'ui.log': (p) => { console.warn('[mock] ui log', p.level, p.message); return true; },
 };

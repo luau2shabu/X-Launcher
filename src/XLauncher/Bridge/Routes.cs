@@ -14,6 +14,8 @@ public interface IHostWindow
     string? PickFolder();
     void Quit();
     void OnUiReady();
+    /// <summary>Called right before an app is started (watches for its window to make it full screen).</summary>
+    void BeforeLaunch(AppEntry app);
 }
 
 /// <summary>Every method the web UI can call. Keep app/ui/js/mock.js in step with this list.</summary>
@@ -37,9 +39,29 @@ public static class Routes
         bridge.On("apps.launch", async p =>
         {
             var app = await svc.Apps.FindAsync(p.Req("id")) ?? throw new InvalidOperationException("App not found");
+            window.BeforeLaunch(app);
             AppLauncher.Launch(app);
             return (object?)true;
         });
+
+        // ---- app icons from the internet
+        bridge.On("icons.search", async p => (object?)await svc.Icons.SearchAsync(p.Req("name"), p.Opt("website")));
+        bridge.On("icons.use", async p =>
+        {
+            var url = await svc.Icons.UseAsync(p.Req("id"), p.Req("url"));
+            return (object?)url;
+        });
+        bridge.On("icons.reset", p =>
+        {
+            svc.Icons.Reset(p.Req("id"));
+            return true;
+        });
+
+        // ---- Google sign-in for profiles
+        bridge.On("google.status", _ => svc.Google.Status());
+        bridge.On("google.start", async p => (object?)await svc.Google.StartAsync(p.Req("profile")));
+        bridge.On("google.poll", async p => (object?)await svc.Google.PollAsync(p.Req("session")));
+        bridge.On("google.signOut", p => svc.Google.SignOut(p.Req("profile")));
         bridge.On("apps.addWebsite", p =>
         {
             var url = NormalizeUrl(p.Req("url"));

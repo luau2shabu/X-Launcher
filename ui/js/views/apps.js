@@ -7,6 +7,7 @@ import * as focus from '../focus.js';
 import * as router from '../router.js';
 import * as overlay from '../components/overlay.js';
 import { row, appCard, actionCard, skeletonRow } from '../components/cards.js';
+import { pickIcon } from '../components/icon-picker.js';
 
 export async function launch(app) {
   toast(t('apps.opening', { name: app.name }));
@@ -41,6 +42,17 @@ async function appMenu(app, card, rerender) {
         await data.updateProfile((p) => { p.favorites.push(app.id); });
         toast(t('apps.added', { name: app.name }));
         rerender();
+      },
+    });
+  }
+  items.push({ label: t('icons.change'), hint: t('icons.changeHint'), icon: 'photo', action: () => pickIcon(app, { rerender }) });
+  if (app.kind !== 'url') {
+    const windowed = data.state.settings.launch.windowedApps.includes(app.id);
+    items.push({
+      label: windowed ? t('apps.fullscreenOff') : t('apps.fullscreenOn'), hint: t('apps.fullscreenHint'), icon: 'display',
+      action: async () => {
+        const list = data.state.settings.launch.windowedApps;
+        await data.updateSettings({ launch: { windowedApps: windowed ? list.filter((id) => id !== app.id) : [...list, app.id] } });
       },
     });
   }
@@ -155,11 +167,13 @@ async function addWebsite(rerender) {
   }
 }
 
+// A new app usually has only a small (or no) icon: offer large ones from the internet right away
 async function afterAdd(app, rerender) {
   await data.loadSettings();
   data.invalidate('apps');
   toast(t('apps.added', { name: app.name }));
   rerender();
+  await pickIcon(app, { rerender });
 }
 
 export async function renderApps(container, ctx) {

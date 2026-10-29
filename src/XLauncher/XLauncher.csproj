@@ -10,7 +10,7 @@
     <AssemblyName>XLauncher</AssemblyName>
     <RootNamespace>XLauncher</RootNamespace>
     <ApplicationIcon>Assets\xlauncher.ico</ApplicationIcon>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Product>X Launcher</Product>
     <Company>Angstrom X Co., Ltd.</Company>
     <Copyright>© Angstrom X Co., Ltd.</Copyright>
@@ -23,10 +23,16 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
+    <PackageReference Include="QRCoder" Version="1.6.0" />
   </ItemGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="XLauncher.Tests" />
+  </ItemGroup>
+
+  <!-- Optional Google sign-in client (not in git); shipped next to the exe when present -->
+  <ItemGroup>
+    <None Include="google-oauth.json" Condition="Exists('google-oauth.json')" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!-- The web UI lives in /ui at the repository root and is copied next to the executable -->

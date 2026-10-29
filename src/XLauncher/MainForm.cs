@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using XLauncher.Apps;
 using XLauncher.Bridge;
 using XLauncher.Infrastructure;
 using XLauncher.Input;
@@ -23,6 +24,7 @@ public sealed class MainForm : Form, IHostWindow
     readonly WebView2 _web = new() { Dock = DockStyle.Fill, DefaultBackgroundColor = Background };
     KeyboardHook? _hook;
     Gamepad? _gamepad;
+    FullscreenOnLaunch? _fullscreen;
 
     public MainForm(LaunchOptions options, Services services)
     {
@@ -49,6 +51,7 @@ public sealed class MainForm : Form, IHostWindow
         Routes.Register(_bridge, _svc, this);
         Activated += (_, _) =>
         {
+            _fullscreen?.Disarm();
             _web.Focus();
             _bridge.Emit("focus", true);
         };
@@ -72,6 +75,7 @@ public sealed class MainForm : Form, IHostWindow
         }
 
         _hook = new KeyboardHook(OnGlobalKeyDown);
+        _fullscreen = new FullscreenOnLaunch();
         if (_svc.Settings.Current.Input.GamepadEnabled)
         {
             _gamepad = new Gamepad(() => ActiveForm == this, key => _bridge.Emit("key", key), GoHome);
@@ -201,6 +205,14 @@ public sealed class MainForm : Form, IHostWindow
 
     public void Quit() => BeginInvoke(Close);
 
+    public void BeforeLaunch(AppEntry app)
+    {
+        var launch = _svc.Settings.Current.Launch;
+        // Websites already open full screen in Edge
+        if (launch.Fullscreen && app.Kind != "url" && !launch.WindowedApps.Contains(app.Id)) _fullscreen?.Arm();
+        else _fullscreen?.Disarm();
+    }
+
     public void OnUiReady()
     {
         if (_options.ScreenshotPath is { } path) _ = CaptureScreenshotAsync(path);
@@ -227,6 +239,7 @@ public sealed class MainForm : Form, IHostWindow
     {
         _hook?.Dispose();
         _gamepad?.Dispose();
+        _fullscreen?.Dispose();
         base.OnFormClosed(e);
     }
 }

@@ -1,6 +1,7 @@
 using System.Web;
 using XLauncher.Apps;
 using XLauncher.Config;
+using XLauncher.Infrastructure;
 using XLauncher.Plex;
 
 namespace XLauncher.Web;
@@ -40,6 +41,12 @@ public sealed class ImageRouter(AppCatalog apps, PlexImages plexImages, Settings
             case "photo" when query["p"] is { Length: > 0 } file:
                 return await PhotoAsync(file);
 
+            case "custom" when segments.Length == 2:
+                return (await ReadLocalAsync(Paths.CustomIcons, segments[1]), "image/png");
+
+            case "avatar" when segments.Length == 2:
+                return (await ReadLocalAsync(Paths.Avatars, segments[1]), "image/jpeg");
+
             default:
                 return (null, "");
         }
@@ -55,6 +62,14 @@ public sealed class ImageRouter(AppCatalog apps, PlexImages plexImages, Settings
         if (!full.StartsWith(root, StringComparison.OrdinalIgnoreCase) || !PhotoTypes.TryGetValue(Path.GetExtension(full), out var mime) || !File.Exists(full))
             return (null, "");
         return (await File.ReadAllBytesAsync(full), mime);
+    }
+
+    // A plain file name inside one of our own folders; anything with a path in it is refused
+    static async Task<byte[]?> ReadLocalAsync(string folder, string name)
+    {
+        if (name != Path.GetFileName(name) || name.Contains("..")) return null;
+        var path = Path.Combine(folder, name);
+        return File.Exists(path) ? await File.ReadAllBytesAsync(path) : null;
     }
 
     public static List<string> ListPhotos(string folder, int max = 500)

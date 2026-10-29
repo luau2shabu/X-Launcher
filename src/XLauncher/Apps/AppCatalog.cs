@@ -37,7 +37,10 @@ public sealed class AppCatalog : IDisposable
         {
             _gate.Release();
         }
-        return _settings.Current.CustomApps.Select(ToEntry).Concat(_installed).ToList();
+        var overrides = _settings.Current.IconOverrides;
+        return _settings.Current.CustomApps.Select(ToEntry).Concat(_installed)
+            .Select(a => overrides.TryGetValue(a.Id, out var file) ? a with { Icon = IconSearch.CustomIconUrl(file) } : a)
+            .ToList();
     }
 
     public async Task<AppEntry?> FindAsync(string id) =>

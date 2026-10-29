@@ -41,6 +41,7 @@ public sealed class SettingsStore
             patchNode.Remove("clientId");
             patchNode.Remove("version");
             patchNode.Remove("customApps");
+            patchNode.Remove("iconOverrides");
             Json.Merge(node, patchNode);
             var merged = node.Deserialize<AppSettings>(Json.Options) ?? new AppSettings();
             merged.ClientId = Current.ClientId;

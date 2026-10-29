@@ -1,4 +1,5 @@
 using XLauncher.Apps;
+using XLauncher.Auth;
 using XLauncher.Config;
 using XLauncher.Infrastructure;
 using XLauncher.Plex;
@@ -17,7 +18,12 @@ public sealed class Services : IDisposable
         PlexImages = new PlexImages(Plex);
         Playback = new PlexPlayback(Plex, Settings);
         Images = new ImageRouter(Apps, PlexImages, Settings);
+        Icons = new IconSearch(Settings);
+        Google = new GoogleSignIn(Settings);
     }
+
+    public IconSearch Icons { get; }
+    public GoogleSignIn Google { get; }
 
     public SettingsStore Settings { get; }
     public AppCatalog Apps { get; }
@@ -30,5 +36,7 @@ public sealed class Services : IDisposable
     {
         Apps.Dispose();
         Plex.Dispose();
+        Icons.Dispose();
+        Google.Dispose();
     }
 }

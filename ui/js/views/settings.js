@@ -160,7 +160,15 @@ export function openSettings(app) {
     head: titleHead('settings.apps'),
     items: async () => {
       const hiddenCount = data.state.settings.hiddenApps.length;
+      const fullscreen = data.state.settings.launch.fullscreen;
       return [
+        {
+          icon: 'display', label: t('settings.appsFullscreen'), sub: t('settings.appsFullscreenHint'), toggle: fullscreen,
+          action: async () => {
+            await data.updateSettings({ launch: { fullscreen: !fullscreen } });
+            rerenderPane();
+          },
+        },
         {
           icon: 'refresh', label: t('settings.appsRefresh'),
           action: async () => {
