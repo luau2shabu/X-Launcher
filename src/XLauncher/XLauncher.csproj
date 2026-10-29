@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <AssemblyName>XLauncher</AssemblyName>
+    <RootNamespace>XLauncher</RootNamespace>
+    <ApplicationIcon>Assets\xlauncher.ico</ApplicationIcon>
+    <Version>0.1.0</Version>
+    <Product>X Launcher</Product>
+    <Company>Angstrom X Co., Ltd.</Company>
+    <Copyright>© Angstrom X Co., Ltd.</Copyright>
+    <Description>X Launcher — TV home screen for Windows</Description>
+    <!-- Built-in COM interop (Shell.Application, IShellItemImageFactory) needs the full runtime -->
+    <PublishTrimmed>false</PublishTrimmed>
+    <!-- The WebView2 package also references its WPF assembly; harmless for a WinForms host -->
+    <MSBuildWarningsAsMessages>$(MSBuildWarningsAsMessages);MSB3277</MSBuildWarningsAsMessages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="XLauncher.Tests" />
+  </ItemGroup>
+
+  <!-- The web UI lives in /ui at the repository root and is copied next to the executable -->
+  <ItemGroup>
+    <Content Include="..\..\ui\**\*" LinkBase="ui" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
