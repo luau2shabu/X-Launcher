@@ -51,7 +51,7 @@ const items = TITLES.map(([title, year, type, badges], i) => {
   return {
     server: SERVER.id, serverName: SERVER.name, key: String(100 + i), type, sectionKey: show ? '2' : '1',
     title, subtitle: String(year), year, summary: SUMMARY, tagline: i % 3 === 0 ? 'Long live the fighters.' : null,
-    poster: svg(360, 540, hue, title.split(':')[0], year), landscape: svg(640, 360, hue, title, year), art: svg(1920, 1080, hue, '', ''),
+    poster: svg(360, 540, hue, title.split(':')[0], year), landscape: svg(640, 360, hue, '', ''), art: svg(1920, 1080, hue, '', ''),
     duration: show ? 0 : (100 + i * 4) * 60000, viewOffset: 0, progress: 0, watched: i % 5 === 4,
     rating: 7 + (i % 3) * 0.6, contentRating: show ? 'TV-MA' : 'PG-13', genres: [GENRES[i % 5], GENRES[(i + 2) % 5]],
     directors: show ? [] : ['Denis Villeneuve'], cast: ['Actor One', 'Actor Two', 'Actor Three'], badges,
@@ -63,7 +63,7 @@ function episodes(show, season) {
   return Array.from({ length: 8 }, (_, e) => ({
     ...show, key: `${show.key}-${season}-${e + 1}`, type: 'episode', episodeTitle: `Chapter ${e + 1}`,
     subtitle: `S${season} E${e + 1} · Chapter ${e + 1}`, season, episode: e + 1, showKey: show.key, seasonKey: `${show.key}-s${season}`,
-    landscape: svg(640, 360, (Number(show.key) * 47 + e * 9) % 360, `Chapter ${e + 1}`, show.title),
+    landscape: svg(640, 360, (Number(show.key) * 47 + e * 9) % 360, '', ''),
     duration: 52 * 60000, viewOffset: season === 1 && e === 3 ? 21 * 60000 : 0, progress: season === 1 && e === 3 ? 0.4 : 0,
     watched: season === 1 && e < 3,
   }));

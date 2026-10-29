@@ -6,6 +6,26 @@
 It is controlled entirely with a TV remote, an air mouse or a gamepad. The layout follows Google TV, with
 Plex built in, and is styled in the Angstrom X identity (teal-blue bar mark, Noto Sans Thai and Poppins).
 
+## Screenshots
+
+![For you: hero banner, Your apps and Continue watching](docs/screenshots/home.png)
+
+| | |
+|---|---|
+| ![Apps: every installed Windows and Store app](docs/screenshots/apps.png) | ![Details page with seasons, episodes and quality badges](docs/screenshots/details.png) |
+| **Apps**: every installed Windows and Store app | **Details**: badges, seasons and episodes, resume |
+| ![Search with the Thai/English on-screen keyboard](docs/screenshots/search.png) | ![Long-press menu on an app](docs/screenshots/menu.png) |
+| **Search**: Thai/English on-screen keyboard | **Hold OK**: move, remove, rename, change icon |
+| ![Profiles: Windows admin and a kids profile](docs/screenshots/profiles.png) | ![Kids profile with screen time left](docs/screenshots/kids.png) |
+| **Profiles**: the Windows user, standard and kids | **Kids mode**: only allowed apps, time left |
+| ![Parental controls for a child](docs/screenshots/parental.png) | |
+| **Parental controls**: apps, libraries, rating, screen time | |
+
+<sub>Screenshots use the built-in mock data (`ui/index.html?mock=1`). Regenerate them with
+`tools/capture-screenshots.ps1`.</sub>
+
+## Features
+
 - **Tabs**: For you, Movies, Shows, Apps and Library, plus Search, Settings and profiles in the top bar.
 - **For you**:
   - a rotating hero banner;
@@ -46,7 +66,9 @@ ui/                     the interface: plain HTML/CSS/ES modules, no build step
   js/mock.js            fake backend so the UI runs in a normal browser (index.html?mock=1)
   fonts/                Noto Sans Thai and Poppins (SIL Open Font License)
 installer/              Inno Setup script and wizard images
-tools/                  make-icon.ps1 / make-installer-art.ps1 regenerate the icon and wizard images
+docs/screenshots/       README screenshots (mock data)
+tools/                  make-icon.ps1 / make-installer-art.ps1 regenerate the icon and wizard images;
+                        capture-screenshots.ps1 renders the README screenshots with headless Edge
 publish.ps1             builds dist/XLauncher
 build-installer.ps1     builds dist/XLauncher-Setup-<version>.exe
 ```

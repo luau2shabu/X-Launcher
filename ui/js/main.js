@@ -396,6 +396,9 @@ async function start() {
   const rows = focus.sections(shell.content).length;
   const apps = (await data.favoriteApps()).length;
   call('ui.ready', { summary: `${rows} sections on Home, ${apps} favorite apps` }).catch(() => {});
+
+  const demo = isMock && new URLSearchParams(location.search).get('demo');
+  if (demo) (await import('./demo.js')).run(demo, { selectTab: (tab) => selectTab(tab, { focusContent: true }), rerender: app.rerender });
 }
 
 start().catch((err) => {
